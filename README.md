@@ -5,8 +5,8 @@ Autonomous Litter Collector Robot
 Team:
 - Walter Warneke
 - Ricardo Martinez
-- Joseph Sheff
 - Albert Andrade
+- Joseph Sheff
 
 [Senior Design Presentation Video](https://www.youtube.com/watch?v=QL7SbdBDqHc&feature=youtu.be "Youtube Link")
 
