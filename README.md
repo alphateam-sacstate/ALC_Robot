@@ -3,10 +3,10 @@ Autonomous Litter Collector Robot
 
 # Sacramento State 2020
 Team:
-- Walter Warneke
-- Ricardo Martinez
-- Albert Andrade
-- Joseph Sheff
+- **Walter Warneke** _(Electrical/Electronic Engineering)_
+- **Ricardo Martinez** _(Electrical/Electronic Engineering)_
+- **Albert Andrade** _(Computer Engineering)_
+- **Joseph Sheff** _(Electrical/Electronic Engineering)_
 
 [Senior Design Presentation Video](https://www.youtube.com/watch?v=QL7SbdBDqHc&feature=youtu.be "Youtube Link")
 
