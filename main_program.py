@@ -1,3 +1,5 @@
+# Import libraries used for this project
+# Some are default/open-source libraries, some we created
 from __future__ import division
 from __future__ import print_function
 from motors import *
@@ -15,22 +17,34 @@ import apriltag
 import math
 import cv2
 
-
+# Initialize global variables used throughout functions
 angle = 0.0
 vector_list = []
 encoder1 = 0
 encoder2 = 0
-#initialize video capture
+moments = 0
+area = 0.0
+x = 0
+y = 0
+ret,frame = cam.read()
+area = 0
+dis = 21
+
+# Initialize video capture using OpenCV
 cam = cv2.VideoCapture(0)
 width = 1280
 height = 880
-#Apriltag Detector Initialize
+
+# Initialize Apriltag detector from Swatbotics apriltag library
 detector = apriltag.Detector()
 window = 'Camera'
+tag_size = 1
+
+# Camera parameters (attained from camera calibration program)
 fx ,fy ,cx, cy = (1390.3977534277124, 1409.7720276829375, 639.50000001162925, 479.49999999786633)
 camera_params = fx, fy, cx, cy
-tag_size = 1
-#Create color threshold & save into arrays
+
+#Create color threshold for object detection
 Ymin = 0
 Ymax = 150
 Umin = 0
@@ -40,16 +54,9 @@ Vmax = 212
 minArea = 50
 rangeMin = np.array([Ymin, Umin, Vmin], np.uint8)
 rangeMax = np.array([Ymax, Umax, Vmax], np.uint8)
-#Global Variables
-moments = 0
-area = 0.0
-x = 0
-y = 0
-ret,frame = cam.read()
-area = 0
-dis = 21
 
 
+# Create PID controller class
 class PID:
     """PID Controller
     """
@@ -129,7 +136,8 @@ class PID:
     def setSampleTime(self, sample_time):
         self.sample_time = sample_time
 
-
+        
+# Function to execute 90 degree right turns with PID
 def rightpid():
     global angle 
     rangle = angle
@@ -154,7 +162,8 @@ def rightpid():
             stop()
             break        
 
-
+            
+# Function to execute 90 degree left turns with PID
 def leftpid():
     global angle
     rangle = angle
@@ -180,6 +189,7 @@ def leftpid():
             break
  
 
+# "zoom" back to homebase function using resultant vector's distance(as # of encoder ticks)
 def zoom(ticks):
     global encoder1
     #10186 ticks = 5ft with 2.47in radius
@@ -191,12 +201,12 @@ def zoom(ticks):
     print(encoder1)
 
 
+# Function to turn and drive toward homebase
+# Utilizes resultant vector angle and distance
 def return_base():
     global angle
     global vector_list
-
     rangle = angle
-    
     res_mag, res_deg = calc_resultant(vector_list)
     if (res_deg < 0):
         res_deg = res_deg + 360
@@ -223,6 +233,9 @@ def return_base():
     print(res_mag)
     zoom(res_mag-4000) 
 
+    
+# Append gathered vectors to list of vectors
+# Used in calculating resultant vector
 def create_vector():
     time.sleep(2)
     global encoder1, encoder2
@@ -234,8 +247,8 @@ def create_vector():
     time.sleep(1)
 
 
-def snaked():
-    
+# Lawnmower/Snake pathplanning function
+def snaked():    
     fwrdd()
     create_vector()
     enc_res()
@@ -247,35 +260,31 @@ def snaked():
     enc_res()    
     rightpid()
     enc_res()
-    time.sleep(1)
-    
+    time.sleep(1)    
     fwrdd()
     create_vector()
     enc_res()    
     leftpid()
     enc_res()
-
     time.sleep(1)
     fwrd_short()
     create_vector()    
     enc_res()    
     leftpid()
     enc_res()
-
     time.sleep(1)    
     fwrdd()
     create_vector()
     enc_res()    
     time.sleep(2)
-    
     #Return to Base
     print(vector_list)
     return_base()
 
 
+# Lawnmower/Snake pathplanning function with exeption if object in sight
 def snake():
     global area    
-    
     fwrd()
     create_vector()
     #Check if Object in Sight
@@ -292,8 +301,7 @@ def snake():
     enc_res()    
     rightpid()
     enc_res()
-    time.sleep(2)
-    
+    time.sleep(2)  
     fwrd()
     create_vector()
     #Check if Object in Sight
@@ -310,7 +318,6 @@ def snake():
     leftpid()
     enc_res()
     time.sleep(2)
-    
     fwrd()
     create_vector()
     #Check if Object in Sight
@@ -319,12 +326,35 @@ def snake():
         return
     enc_res()    
     time.sleep(2)
-    
     #Return to Base
     print(vector_list)
     return_base()
 
+    
+# Threaded Camera function to continually capture frames in background
+def camera_on():
+    global ret,frame
+    while True:
+        ret, frame = cam.read()
+        
+        
+# Threaded function that pulls IMU data from
+# Arduino's Serial Monitor and stores them in a list
+def imu_thread():
+    global angle
+    
+    while True:
+        data = ser.readline()
+        decoded_bytes = data.decode("utf-8")
+        if data:
+            try:
+                angle = float(decoded_bytes)
+            except Exception:
+                pass
 
+            
+# Threaded function that pulls encoder readings from
+# Arduino's Serial Monitor and stores them in a list    
 def encoder_thread():
     global encoder1
     global encoder2
@@ -342,11 +372,13 @@ def encoder_thread():
                 elist = []
 
 
+# Resets encoder readings back to 0                
 def enc_res():
     serial_e.write(b"0")
     print("Reset")
 
 
+# Drives forward a set distance (used in pathplanning)
 def fwrd():
     global encoder1
     global area
@@ -362,6 +394,8 @@ def fwrd():
     stop()
     print(encoder1)
 
+    
+# Drives forward a set distance (used in snaked function)
 def fwrdd():
     global encoder1
     global area
@@ -374,7 +408,20 @@ def fwrdd():
     stop()
     print(encoder1)
 
+    
+# Drives forward a set distance (used in pathplanning)
+def fwrd_short():
+    global encoder1
+    #10186 ticks = 5ft with 2.47in radius
+    while (encoder1<6000):
+        setspeedm1(1200)
+        setspeedm2(1200)
+        forward()
+    stop()
+    print(encoder1)
 
+    
+# Drives forward for a set number of encoder ticks
 def fwrd_cup(ticks):
     global encoder1
     global area
@@ -388,57 +435,10 @@ def fwrd_cup(ticks):
             break
     stop()
     print(encoder1)
+     
 
-
-def fwrd_short():
-    global encoder1
-    #10186 ticks = 5ft with 2.47in radius
-    while (encoder1<6000):
-        setspeedm1(1200)
-        setspeedm2(1200)
-        forward()
-    stop()
-    print(encoder1)
-
-
-def imu_thread():
-    global angle
-    
-    while True:
-        data = ser.readline()
-        decoded_bytes = data.decode("utf-8")
-        if data:
-            try:
-                angle = float(decoded_bytes)
-            except Exception:
-                pass
-
-
-def camera_on():
-    global ret,frame
-    while True:
-        ret, frame = cam.read()
-'''
-                if (area <= 158400):
-                    cv2.circle(frame,(int(x),int(y)),5,(255,0,0),-1)
-                    #print("forward")
-                    setspeedm1(1100)
-                    setspeedm2(1100) 
-                    #forward()
-                elif (area >= 234400):
-                    cv2.circle(frame,(int(x),int(y)),5,(0,0,255),-1)
-                    #print("backward")
-                    setspeedm1(1100)
-                    setspeedm2(1100) 
-                    #backward()
-                else:
-                    #print("stop")
-                    setspeedm1(0)
-                    setspeedm2(0)
-                    stop()
-                    print("Cup Localized!")
-                    break
-'''
+# Uses most recent 3 frames to detect an object if in sight
+# Calculates object area, center, and coordinates if object in sight
 def cup_finder():
     global moments
     global area
@@ -460,11 +460,8 @@ def cup_finder():
             if (area > major_area):
                 major_area = area
                 best_outline = contour_position
-
         moments = cv2.moments(np.array(best_outline))
-
         area = moments['m00']
-        #print(area)
         if area >= minArea:
             x = int(moments['m10'] / moments['m00'])
             y = int(moments['m01'] / moments['m00'])
@@ -473,8 +470,7 @@ def cup_finder():
             break
 
 
-#Call center every once in a while from different distances
-#be lenient when distance is far
+# Centers robot after some distance travelled towards it
 def center():
     while True:
         cup_finder()
@@ -512,7 +508,10 @@ def center():
                 else:
                     break
 
-
+                    
+# Utilizes the apriltag detection library
+# detects apriltag and uses the distance & rotation along x-axis 
+# to properly orientate the robot to the homebase
 def robodock():
     global dis
     while True:
@@ -525,19 +524,9 @@ def robodock():
         setspeedm2(800)
         right()
         for i, detection in enumerate(detections):
-            #print('Detection {} of {}:'.format(i+1, num_detections))
-            #print()
-            #print(detection.tostring(indent=2))
-            #print()
- 
             dis = tud.get_distance(detection.homography,10000)
             print('Distance',dis)
-            #if (dis < 20):  
-            #    break
-       # if (dis < 20):  
-        #    break 
             detector.detection_pose(detection,camera_params,tag_size=1,z_sign=1)
-          
             pose, e0, e1 = detector.detection_pose(detection,camera_params,tag_size)
             print(pose[2][0])
             if pose[2][0] < -0.2:
@@ -551,18 +540,19 @@ def robodock():
             else:
                 stop()
                 break    
-               # if (dis >= 20):
-               #     setspeedm1(0)
-               #     setspeedm2(0)
-                    #forward()
-               # elif (dis < 20):
-               #     stop()
-               #     print("stop")
-               #     k = k + 1
-               #     time.sleep(2)
+                if (dis >= 20):
+                    setspeedm1(0)
+                    setspeedm2(0)
+                    forward()
+                elif (dis < 20):
+                    stop()
+                    print("stop")
+                    time.sleep(2)
         print(robodock.k)
 
 
+# Uses camera to calculate area of object
+# and estimate distance using the area size
 def d2cup():
     global area
     cup_finder()
@@ -585,7 +575,6 @@ def d2cup():
         stop()
         time.sleep(2)
         center()
-        #probably record vector here
         cup_finder()
         print("Area "+str(area))
         goal_area = area + n
@@ -593,13 +582,16 @@ def d2cup():
     time.sleep(1)
     
 
-
+# Manipulator functions executed in order to pick object up
 def pickup_cup():
     rest()
     extend_cup()
     grab_cup()
     retrieve_cup()
  
+
+# Uses area of object to estimate distrance from it
+# stops motors when robot is 20 cm from the object
 def aread():
     global area
     stop = 0
@@ -609,6 +601,9 @@ def aread():
     if area < 383000:
         return stop 
 
+    
+# Using ultrasonic sensor feedback, averages 5 readings
+# and returns distance from cup as encoder ticks
 def tickd():
     total = 0
     for i in range(5):
@@ -622,7 +617,8 @@ def tickd():
     print(ticks)
 
 
-#Threaded Serial Readers
+# Starts the threaded functions used in program
+# Camera Function, IMU Data Gather, Encoder Data Gather
 imu_th = threading.Thread(target=imu_thread)
 enc_th = threading.Thread(target=encoder_thread)
 cupfinder = threading.Thread(target=camera_on)
@@ -630,10 +626,12 @@ imu_th.start()
 enc_th.start()
 cupfinder.start()  
 
+
+# Terminal instructions output to run different functions and programs
 while True:
     print("\n")
-    print("Debug Program/Tester...\n")
-    print("Use the following keys to run a function:\n")
+    print("Main Program/Tester...\n")
+    print("Enter one of the key combinations and hit enter to run a function/program:\n")
     print("Motor Functions: ")
     print("Forward - w  Backward - s  Right - d  Left - a  Stop - q")
     print("Check Battery: ")
@@ -643,6 +641,7 @@ while True:
     print("Machine Vision Functions: ")
     print("Cup Finder - z  Cup Area - area  Cup Distance - ultra")  
     print("Cup Coordinates - xy  Center Robot - center  Apriltag - x")
+    print("Run Demo - demo  Run Path Demo - snaked")
     print("\n\n")
     
     value = input()
@@ -670,7 +669,7 @@ while True:
         #resultant vector to hit the homebase
         #return_base()
         #use apriltag to dock properly
-        #robodock()
+        robodock()
         print("\n")
     elif value == 'snake':
         snake()
